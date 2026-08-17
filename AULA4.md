@@ -20,13 +20,13 @@ Sem switch extra: o R-ISP é um roteador com 3 portas Gigabit (modelo 2911), uma
                           |
                           | Gi0/1  (trunk 802.1Q, 1 cabo só)
                           |
-                        [SW1] Fa0/24 trunk
+                        [SW1] Gi0/1 trunk
                          /          \
-                   Fa0/1-2         Fa0/3-4
+                  Fa0/1-12         Fa0/13-24
                   VLAN 10          VLAN 20
                192.168.10.0/24   192.168.20.0/24
                  COM internet      SEM internet
-                  PC1, PC2          PC3, PC4
+              PC1 (Fa0/1), PC2 (Fa0/2)   PC3 (Fa0/13), PC4 (Fa0/14)
 ```
 
 ## 2. Equipamentos
@@ -37,24 +37,26 @@ Sem switch extra: o R-ISP é um roteador com 3 portas Gigabit (modelo 2911), uma
 | DNS Server | Server-PT | Resolve `www.internet.com` |
 | Web Server | Server-PT | Site que os PCs vão acessar pelo navegador |
 | R-GW | Router 1941/2911 (2 Gigabit) | Gateway da rede interna, recebe IP via DHCP do R-ISP, faz NAT |
-| SW1 | Switch 2960 | VLAN 10 e VLAN 20 |
-| PC1, PC2 | PC genérico | VLAN 10 — com internet |
-| PC3, PC4 | PC genérico | VLAN 20 — sem internet |
+| SW1 | Switch 2960-24TT (24x FastEthernet + 2x GigabitEthernet) | VLAN 10 (Fa0/1-12) e VLAN 20 (Fa0/13-24), trunk em Gi0/1 |
+| PC1, PC2 | PC genérico | VLAN 10 — com internet (em Fa0/1 e Fa0/2) |
+| PC3, PC4 | PC genérico | VLAN 20 — sem internet (em Fa0/13 e Fa0/14) |
 
 ## 3. Cabeamento
 
-8 cabos ao todo, um único switch (o SW1 das VLANs) — nenhum switch extra do lado da internet.
+8 cabos ao todo, um único switch (o SW1 das VLANs) — nenhum switch extra do lado da internet. O trunk usa a porta Gigabit do switch, não uma FastEthernet.
 
 | # | De | Porta | Para | Porta |
 |---|---|---|---|---|
 | 1 | Web Server | FastEthernet0 | R-ISP | Gi0/1 |
 | 2 | DNS Server | FastEthernet0 | R-ISP | Gi0/2 |
 | 3 | R-ISP | Gi0/0 | R-GW | Gi0/0 |
-| 4 | R-GW | Gi0/1 | SW1 | Fa0/24 |
+| 4 | R-GW | Gi0/1 | SW1 | **Gi0/1** |
 | 5 | SW1 | Fa0/1 | PC1 | FastEthernet0 |
 | 6 | SW1 | Fa0/2 | PC2 | FastEthernet0 |
-| 7 | SW1 | Fa0/3 | PC3 | FastEthernet0 |
-| 8 | SW1 | Fa0/4 | PC4 | FastEthernet0 |
+| 7 | SW1 | Fa0/13 | PC3 | FastEthernet0 |
+| 8 | SW1 | Fa0/14 | PC4 | FastEthernet0 |
+
+As demais portas (Fa0/3 a Fa0/12 = VLAN 10, Fa0/15 a Fa0/24 = VLAN 20) ficam configuradas e livres, prontas pra plugar mais PCs depois se quiser.
 
 > **Confira antes de configurar IP em qualquer coisa.** É fácil trocar sem querer a porta de um cabo (ex: ligar o R-GW no `Gi0/2` do R-ISP em vez do `Gi0/0`) e passar horas depurando IP/DHCP quando o problema era só o cabo no lugar errado. Depois de cabear, em cada roteador rode:
 > ```bash
@@ -76,7 +78,7 @@ Sem switch extra: o R-ISP é um roteador com 3 portas Gigabit (modelo 2911), uma
 
 ## 5. Switch SW1 — VLANs e trunk
 
-Porta por porta, sem usar `interface range` — é mais comando, mas elimina qualquer chance de uma porta "escapar" do bloco por engano.
+Divisão: **Fa0/1 a Fa0/12 = VLAN 10**, **Fa0/13 a Fa0/24 = VLAN 20**, trunk na porta Gigabit (`Gi0/1`) pro roteador. Usa `interface range` com espaço antes e depois do hífen — sem o espaço, o Packet Tracer às vezes só pega a primeira porta do intervalo, que foi o que bagunçou a config anterior.
 
 ```
 enable
@@ -90,27 +92,17 @@ vlan 20
  name VLAN20_SEM_INTERNET
 exit
 
-interface fastEthernet0/1
+interface range fastEthernet0/1 - 12
  switchport mode access
  switchport access vlan 10
 exit
 
-interface fastEthernet0/2
- switchport mode access
- switchport access vlan 10
-exit
-
-interface fastEthernet0/3
+interface range fastEthernet0/13 - 24
  switchport mode access
  switchport access vlan 20
 exit
 
-interface fastEthernet0/4
- switchport mode access
- switchport access vlan 20
-exit
-
-interface fastEthernet0/24
+interface gigabitEthernet0/1
  switchport mode trunk
  switchport trunk allowed vlan 10,20
 exit
@@ -129,11 +121,19 @@ Resultado esperado:
 
 | VLAN | Nome | Portas |
 |---|---|---|
-| 1 | default | todas as portas que você não tocou (Fa0/5 a Fa0/23, etc.) |
-| 10 | VLAN10_INTERNET | Fa0/1, Fa0/2 |
-| 20 | VLAN20_SEM_INTERNET | Fa0/3, Fa0/4 |
+| 1 | default | nenhuma (todas as 24 portas foram atribuídas) |
+| 10 | VLAN10_INTERNET | Fa0/1, Fa0/2, Fa0/3, Fa0/4, Fa0/5, Fa0/6, Fa0/7, Fa0/8, Fa0/9, Fa0/10, Fa0/11, Fa0/12 |
+| 20 | VLAN20_SEM_INTERNET | Fa0/13, Fa0/14, Fa0/15, Fa0/16, Fa0/17, Fa0/18, Fa0/19, Fa0/20, Fa0/21, Fa0/22, Fa0/23, Fa0/24 |
 
-A `Fa0/24` **não aparece em nenhuma VLAN** nessa lista — é normal, porta trunk não pertence a uma VLAN só, ela carrega todas. Se aparecer diferente disso (ex: Fa0/2 ainda em VLAN 1, ou Fa0/3 sumida), foi exatamente o comando de uma porta específica que não rodou — repita só o bloco `interface fastEthernet0/X` daquela porta.
+`Gi0/1` **não aparece em nenhuma VLAN** nessa lista — normal, porta trunk carrega as duas. Se alguma porta individual aparecer fora do lugar (ex: Fa0/7 ainda em VLAN 1), rode só o bloco dela sozinha, sem range:
+```
+configure terminal
+interface fastEthernet0/7
+ switchport mode access
+ switchport access vlan 10
+exit
+end
+```
 
 ## 6. Router R-ISP — simulando o provedor
 
@@ -261,12 +261,12 @@ write memory
 
 Em cada PC: **Desktop → IP Configuration → Static**.
 
-| PC | IP | Máscara | Gateway | DNS Server |
-|---|---|---|---|---|
-| PC1 | 192.168.10.10 | 255.255.255.0 | 192.168.10.1 | 203.0.113.6 |
-| PC2 | 192.168.10.11 | 255.255.255.0 | 192.168.10.1 | 203.0.113.6 |
-| PC3 | 192.168.20.10 | 255.255.255.0 | 192.168.20.1 | 203.0.113.6 |
-| PC4 | 192.168.20.11 | 255.255.255.0 | 192.168.20.1 | 203.0.113.6 |
+| PC | Porta no SW1 | IP | Máscara | Gateway | DNS Server |
+|---|---|---|---|---|---|
+| PC1 | Fa0/1 | 192.168.10.10 | 255.255.255.0 | 192.168.10.1 | 203.0.113.6 |
+| PC2 | Fa0/2 | 192.168.10.11 | 255.255.255.0 | 192.168.10.1 | 203.0.113.6 |
+| PC3 | Fa0/13 | 192.168.20.10 | 255.255.255.0 | 192.168.20.1 | 203.0.113.6 |
+| PC4 | Fa0/14 | 192.168.20.11 | 255.255.255.0 | 192.168.20.1 | 203.0.113.6 |
 
 ## 11. Verificação
 
