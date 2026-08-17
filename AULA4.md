@@ -76,31 +76,64 @@ Sem switch extra: o R-ISP é um roteador com 3 portas Gigabit (modelo 2911), uma
 
 ## 5. Switch SW1 — VLANs e trunk
 
+Porta por porta, sem usar `interface range` — é mais comando, mas elimina qualquer chance de uma porta "escapar" do bloco por engano.
+
 ```
 enable
 configure terminal
 hostname SW1
+
 vlan 10
  name VLAN10_INTERNET
 exit
 vlan 20
  name VLAN20_SEM_INTERNET
 exit
-interface range fastEthernet0/1-2
+
+interface fastEthernet0/1
  switchport mode access
  switchport access vlan 10
 exit
-interface range fastEthernet0/3-4
+
+interface fastEthernet0/2
+ switchport mode access
+ switchport access vlan 10
+exit
+
+interface fastEthernet0/3
  switchport mode access
  switchport access vlan 20
 exit
+
+interface fastEthernet0/4
+ switchport mode access
+ switchport access vlan 20
+exit
+
 interface fastEthernet0/24
  switchport mode trunk
  switchport trunk allowed vlan 10,20
 exit
+
 end
 write memory
 ```
+
+**Confira imediatamente depois**, antes de seguir pro resto do lab:
+
+```bash
+show vlan brief
+```
+
+Resultado esperado:
+
+| VLAN | Nome | Portas |
+|---|---|---|
+| 1 | default | todas as portas que você não tocou (Fa0/5 a Fa0/23, etc.) |
+| 10 | VLAN10_INTERNET | Fa0/1, Fa0/2 |
+| 20 | VLAN20_SEM_INTERNET | Fa0/3, Fa0/4 |
+
+A `Fa0/24` **não aparece em nenhuma VLAN** nessa lista — é normal, porta trunk não pertence a uma VLAN só, ela carrega todas. Se aparecer diferente disso (ex: Fa0/2 ainda em VLAN 1, ou Fa0/3 sumida), foi exatamente o comando de uma porta específica que não rodou — repita só o bloco `interface fastEthernet0/X` daquela porta.
 
 ## 6. Router R-ISP — simulando o provedor
 
