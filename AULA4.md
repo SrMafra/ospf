@@ -4,33 +4,36 @@ Laboratório: 1 switch com 2 VLANs atrás de um roteador com NAT. A VLAN 10 sai 
 
 ## 1. Topologia
 
+Sem switch extra: o R-ISP é um roteador com 3 portas Gigabit (modelo 2911), uma para cada servidor e uma para o R-GW.
+
 ```
-[Web Server]     [DNS Server]
- 203.0.113.10     203.0.113.53
-        \            /
-         \          /
-        [R-ISP] Gi0/1 --- 203.0.113.0/24
-           |
-           | Gi0/0  (pool DHCP 200.200.200.0/29 -> simula o provedor)
-           |
-        [R-GW] Gi0/0  (ip address dhcp, ip nat outside)
-           |
-           | Gi0/1  (trunk 802.1Q)
-           |
-         [SW1] Fa0/24 trunk
-          /          \
-    Fa0/1-2         Fa0/3-4
-   VLAN 10          VLAN 20
-192.168.10.0/24   192.168.20.0/24
-  COM internet      SEM internet
-   PC1, PC2          PC3, PC4
+[Web Server]                    [DNS Server]
+203.0.113.2                     203.0.113.6
+     |  ponto-a-ponto                |  ponto-a-ponto
+     |  203.0.113.0/30                |  203.0.113.4/30
+     |                                |
+   Gi0/1 -------------[R-ISP]------------- Gi0/2
+                          |
+                          | Gi0/0  (pool DHCP 200.200.200.0/29 -> simula o provedor)
+                          |
+                       [R-GW] Gi0/0  (ip address dhcp, ip nat outside)
+                          |
+                          | Gi0/1  (trunk 802.1Q, 1 cabo só)
+                          |
+                        [SW1] Fa0/24 trunk
+                         /          \
+                   Fa0/1-2         Fa0/3-4
+                  VLAN 10          VLAN 20
+               192.168.10.0/24   192.168.20.0/24
+                 COM internet      SEM internet
+                  PC1, PC2          PC3, PC4
 ```
 
 ## 2. Equipamentos
 
 | Equipamento | Modelo sugerido | Função |
 |---|---|---|
-| R-ISP | Router 1941/2911 | Simula o provedor: entrega IP público via DHCP e hospeda a "internet" (LAN com DNS + Web Server) |
+| R-ISP | Router **2911** (3 portas Gigabit onboard) | Simula o provedor: entrega IP público via DHCP e conecta os dois servidores direto, sem switch |
 | DNS Server | Server-PT | Resolve `www.internet.com` |
 | Web Server | Server-PT | Site que os PCs vão acessar pelo navegador |
 | R-GW | Router 1941/2911 (2 Gigabit) | Gateway da rede interna, recebe IP via DHCP do R-ISP, faz NAT |
@@ -40,24 +43,30 @@ Laboratório: 1 switch com 2 VLANs atrás de um roteador com NAT. A VLAN 10 sai 
 
 ## 3. Cabeamento
 
-- R-ISP `Gi0/0` ↔ R-GW `Gi0/0`
-- R-ISP `Gi0/1` ↔ Switch/hub da "internet" ↔ DNS Server e Web Server (ou ligue os dois servidores direto em portas separadas do R-ISP se ele tiver, senão use um switch simples nesse segmento)
-- R-GW `Gi0/1` ↔ SW1 `Fa0/24` (**um único cabo**, trunk)
-- SW1 `Fa0/1`, `Fa0/2` ↔ PC1, PC2 (VLAN 10)
-- SW1 `Fa0/3`, `Fa0/4` ↔ PC3, PC4 (VLAN 20)
+8 cabos ao todo, um único switch (o SW1 das VLANs) — nenhum switch extra do lado da internet.
+
+| # | De | Porta | Para | Porta |
+|---|---|---|---|---|
+| 1 | Web Server | FastEthernet0 | R-ISP | Gi0/1 |
+| 2 | DNS Server | FastEthernet0 | R-ISP | Gi0/2 |
+| 3 | R-ISP | Gi0/0 | R-GW | Gi0/0 |
+| 4 | R-GW | Gi0/1 | SW1 | Fa0/24 |
+| 5 | SW1 | Fa0/1 | PC1 | FastEthernet0 |
+| 6 | SW1 | Fa0/2 | PC2 | FastEthernet0 |
+| 7 | SW1 | Fa0/3 | PC3 | FastEthernet0 |
+| 8 | SW1 | Fa0/4 | PC4 | FastEthernet0 |
 
 ## 4. Plano de endereçamento
 
 | Rede / host | Endereço | Observação |
 |---|---|---|
-| R-ISP ↔ R-GW (WAN) | `200.200.200.0/29` | R-ISP = `.1` (fixo). R-GW recebe IP **via DHCP** desse pool — simula o provedor entregando IP público |
-| Internet (LAN do R-ISP) | `203.0.113.0/24` | R-ISP = `.1` |
-| DNS Server | `203.0.113.53/24` | gw `203.0.113.1` |
-| Web Server | `203.0.113.10/24` | gw `203.0.113.1`, registrado no DNS como `www.internet.com` |
+| R-ISP ↔ R-GW (WAN) | `200.200.200.0/29` | R-ISP `Gi0/0` = `.1` (fixo). R-GW recebe IP **via DHCP** desse pool — simula o provedor entregando IP público |
+| R-ISP ↔ Web Server | `203.0.113.0/30` | R-ISP `Gi0/1` = `.1`, Web Server = `.2` |
+| R-ISP ↔ DNS Server | `203.0.113.4/30` | R-ISP `Gi0/2` = `.5`, DNS Server = `.6` |
 | VLAN 10 | `192.168.10.0/24` | gw `192.168.10.1` (Gi0/1.10) — **com internet** |
 | VLAN 20 | `192.168.20.0/24` | gw `192.168.20.1` (Gi0/1.20) — **sem internet** |
-| PC1 / PC2 | `192.168.10.10` / `.11` | máscara `255.255.255.0`, gw `192.168.10.1`, DNS `203.0.113.53` |
-| PC3 / PC4 | `192.168.20.10` / `.11` | máscara `255.255.255.0`, gw `192.168.20.1`, DNS `203.0.113.53` |
+| PC1 / PC2 | `192.168.10.10` / `.11` | máscara `255.255.255.0`, gw `192.168.10.1`, DNS `203.0.113.6` |
+| PC3 / PC4 | `192.168.20.10` / `.11` | máscara `255.255.255.0`, gw `192.168.20.1`, DNS `203.0.113.6` |
 
 ## 5. Switch SW1 — VLANs e trunk
 
@@ -89,25 +98,32 @@ write memory
 
 ## 6. Router R-ISP — simulando o provedor
 
-Entrega IP público dinamicamente (como um provedor real faz) e hospeda a "internet" de teste.
+Um roteador **2911** com 3 portas Gigabit: uma para o Web Server, uma para o DNS Server, uma para o R-GW. Entrega IP público dinamicamente ao R-GW (como um provedor real faz) e roteia direto para os dois servidores, sem switch no meio.
 
 ```
 enable
 configure terminal
 hostname R-ISP
+! link com o R-GW (WAN do cliente)
 interface gigabitEthernet0/0
  ip address 200.200.200.1 255.255.255.248
  no shutdown
 exit
+! link ponto-a-ponto com o Web Server
 interface gigabitEthernet0/1
- ip address 203.0.113.1 255.255.255.0
+ ip address 203.0.113.1 255.255.255.252
+ no shutdown
+exit
+! link ponto-a-ponto com o DNS Server
+interface gigabitEthernet0/2
+ ip address 203.0.113.5 255.255.255.252
  no shutdown
 exit
 ip dhcp excluded-address 200.200.200.1
 ip dhcp pool ISP_WAN
  network 200.200.200.0 255.255.255.248
  default-router 200.200.200.1
- dns-server 203.0.113.53
+ dns-server 203.0.113.6
 exit
 end
 write memory
@@ -116,13 +132,13 @@ write memory
 ## 7. DNS Server e Web Server (configuração via GUI, não CLI)
 
 **Web Server:**
-1. Clique no servidor → aba **Desktop → IP Configuration** → IP `203.0.113.10`, máscara `255.255.255.0`, gateway `203.0.113.1`.
+1. Clique no servidor → aba **Desktop → IP Configuration** → IP `203.0.113.2`, máscara `255.255.255.252`, gateway `203.0.113.1`.
 2. Aba **Services → HTTP** → deixe habilitado. Edite o `index.html` para algo como `Você está na internet! (VLAN 10)`, só para deixar o teste visível.
 
 **DNS Server:**
-1. IP `203.0.113.53`, máscara `255.255.255.0`, gateway `203.0.113.1`.
+1. IP `203.0.113.6`, máscara `255.255.255.252`, gateway `203.0.113.5`.
 2. Aba **Services → DNS** → habilite o serviço.
-3. Adicione um registro: Type `A Record`, Name `www.internet.com`, Address `203.0.113.10` → **Add**.
+3. Adicione um registro: Type `A Record`, Name `www.internet.com`, Address `203.0.113.2` → **Add**.
 
 ## 8. Router R-GW — WAN dinâmica + sub-interfaces
 
@@ -190,10 +206,10 @@ Em cada PC: **Desktop → IP Configuration → Static**.
 
 | PC | IP | Máscara | Gateway | DNS Server |
 |---|---|---|---|---|
-| PC1 | 192.168.10.10 | 255.255.255.0 | 192.168.10.1 | 203.0.113.53 |
-| PC2 | 192.168.10.11 | 255.255.255.0 | 192.168.10.1 | 203.0.113.53 |
-| PC3 | 192.168.20.10 | 255.255.255.0 | 192.168.20.1 | 203.0.113.53 |
-| PC4 | 192.168.20.11 | 255.255.255.0 | 192.168.20.1 | 203.0.113.53 |
+| PC1 | 192.168.10.10 | 255.255.255.0 | 192.168.10.1 | 203.0.113.6 |
+| PC2 | 192.168.10.11 | 255.255.255.0 | 192.168.10.1 | 203.0.113.6 |
+| PC3 | 192.168.20.10 | 255.255.255.0 | 192.168.20.1 | 203.0.113.6 |
+| PC4 | 192.168.20.11 | 255.255.255.0 | 192.168.20.1 | 203.0.113.6 |
 
 ## 11. Verificação
 
