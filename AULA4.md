@@ -56,6 +56,12 @@ Sem switch extra: o R-ISP é um roteador com 3 portas Gigabit (modelo 2911), uma
 | 7 | SW1 | Fa0/3 | PC3 | FastEthernet0 |
 | 8 | SW1 | Fa0/4 | PC4 | FastEthernet0 |
 
+> **Confira antes de configurar IP em qualquer coisa.** É fácil trocar sem querer a porta de um cabo (ex: ligar o R-GW no `Gi0/2` do R-ISP em vez do `Gi0/0`) e passar horas depurando IP/DHCP quando o problema era só o cabo no lugar errado. Depois de cabear, em cada roteador rode:
+> ```bash
+> show cdp neighbors
+> ```
+> e confira se o vizinho certo aparece na porta certa (ex: no R-GW, `Gi0/0` deve mostrar `R-ISP`). Só depois disso comece a digitar `ip address`.
+
 ## 4. Plano de endereçamento
 
 | Rede / host | Endereço | Observação |
@@ -99,6 +105,8 @@ write memory
 ## 6. Router R-ISP — simulando o provedor
 
 Um roteador **2911** com 3 portas Gigabit: uma para o Web Server, uma para o DNS Server, uma para o R-GW. Entrega IP público dinamicamente ao R-GW (como um provedor real faz) e roteia direto para os dois servidores, sem switch no meio.
+
+> **Se `interface gigabitEthernet0/2` der `%Invalid interface type and number`:** esse roteador não tem uma terceira porta de fábrica. Rode `show ip interface brief` pra ver o que existe de verdade. Se só tiver `Gi0/0` e `Gi0/1`, adicione uma porta: clique no roteador → aba **Physical** → desligue no botão de força → arraste um módulo com porta Ethernet (ex: `NM-1FE-TX` ou `PT-ROUTER-NM-1FGE`) pra um slot vazio → ligue de novo. Confira o nome exato da interface nova com `show ip interface brief` antes de configurar — pode não ser `GigabitEthernet0/2`.
 
 ```
 enable
@@ -169,7 +177,23 @@ end
 write memory
 ```
 
-Confira com `show ip route` se uma rota padrão (`0.0.0.0/0`) apareceu automaticamente via DHCP. Se não aparecer, descubra o IP recebido em `show ip interface brief` e complete manualmente:
+Confira com `show ip interface brief` se o `Gi0/0` recebeu um IP do pool (algo entre `200.200.200.2` e `.6`). Se continuar `unassigned`:
+
+1. Confirme que o pool existe no R-ISP: `show ip dhcp pool` (se der vazio ou erro, o pool não foi criado — refaça o passo 6).
+2. Confirme o cabo certo com `show cdp neighbors` — deve aparecer `R-ISP` na porta `Gi0/0`.
+3. Force o cliente DHCP a pedir de novo (um simples `shutdown`/`no shutdown` às vezes não é suficiente):
+```
+enable
+configure terminal
+interface gigabitEthernet0/0
+ no ip address dhcp
+ ip address dhcp
+exit
+end
+show ip interface brief
+```
+
+Depois de receber o IP, confira com `show ip route` se uma rota padrão (`0.0.0.0/0`) apareceu automaticamente via DHCP. Se não aparecer, complete manualmente com o IP do R-ISP:
 
 ```
 configure terminal
