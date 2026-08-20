@@ -1,12 +1,6 @@
 # Continuação — Empresa 1 (VLANs) + Empresa 2 + NAT entre empresas
 
-Este arquivo **não repete** o que já está pronto em [REDE-NAT-VLAN.md](REDE-NAT-VLAN.md). Ele parte do estado atual:
 
-- **PROVEDOR**: Gig0/0 → Server DNS externo (200.0.0.x), Gig0/1 → Server WEB externo (200.0.1.x), Gig0/2 → ROTEADOR-EMPRESA (200.200.200.1)
-- **ROTEADOR-EMPRESA**: Gig0/0 outside = 200.200.200.2, Gig0/1 inside = 192.168.10.1/24 (direto, sem trunk), NAT overload já ligado, DHCP pool VLAN10
-- **Switch4**: VLAN 10 "INTRANET" em todas as portas, **PC5** nela
-
-Não mexe em nada disso — só evolui em cima.
 
 ---
 
