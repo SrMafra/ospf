@@ -84,10 +84,10 @@ vlan 10
 ### A5. Adicionar VLAN 20 (RH)
 
 ```
-! No Switch3
+! No Switch4
 vlan 20
  name RH
-! faixa reservada pra VLAN 20: Fa0/11-15 (adicione um PC novo no Switch3 pra testar)
+! faixa reservada pra VLAN 20: Fa0/11-15 (adicione um PC novo no Switch4 pra testar)
 interface FastEthernet0/11
  switchport mode access
  switchport access vlan 20
@@ -140,13 +140,25 @@ Empresa 2 ainda não existe na sua topologia — é um roteador (Router0), switc
 
 ### B1. PROVEDOR — nova interface pro link com a Empresa 2
 
+As 3 portas Gigabit onboard do PROVEDOR já estão todas ocupadas (DNS, WEB, ROTEADOR-EMPRESA). Não precisa adicionar módulo novo — já existe um módulo no slot 3 com 4 portas `FastEthernet0/3/0` a `0/3/3` livres.
+
+**Detalhe importante**: essas portas são de um mini-switch embutido (Camada 2) — têm modo Access/Trunk e VLAN como uma porta de switch comum, e **não aceitam IP direto**. O IP do link tem que ficar na interface virtual `Vlan1` (o gateway desse mini-switch):
+
 ```
 configure terminal
-interface GigabitEthernet0/3
+interface FastEthernet0/3/0
+ switchport mode access
+ switchport access vlan 1
+ no shutdown
+
+interface Vlan1
  ip address 200.200.201.1 255.255.255.252
  no shutdown
 ```
-(troque `Gig0/3` pelo nome real da porta livre no seu 2911 — pode precisar adicionar um módulo)
+
+Confirme com `show ip interface brief` — a `Vlan1` deve aparecer com o IP `200.200.201.1` e status `up/up`.
+
+(se no seu Packet Tracer a porta livre tiver outro nome, ajuste — mas o princípio é o mesmo: `switchport` na porta física + IP na `Vlan1`)
 
 ### B2. Router0 — router-on-a-stick com 2 VLANs que se comunicam
 
