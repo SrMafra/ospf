@@ -250,8 +250,8 @@ description Server3
 ## PARTE C — NAT para a Empresa 2 acessar o ERP da Empresa 1
 
 ```
-! No ROTEADOR-EMPRESA
-ip nat inside source static tcp 192.168.30.10 80 200.200.200.2 80 extendable
+! No ROTEADOR-EMPRESA (não no Router0!)
+ip nat inside source static tcp 192.168.30.10 80 200.200.200.2 80
 ```
 
 Isso expõe a porta 80 do ERP (192.168.30.10) no IP público do roteador da Empresa 1 (200.200.200.2). Como o registro DNS `erp.empresa1.local → 200.200.200.2` já foi criado no Server2 (passo B4), o PC0 acessa direto pelo nome.
